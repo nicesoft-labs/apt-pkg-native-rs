@@ -24,6 +24,24 @@ available in that version. See
 [#2](https://github.com/FauxFaux/apt-pkg-native-rs/issues/2#issuecomment-351180818).
 This feature is no longer tested on CI, as these distros are long gone.
 
+The `niceos-apt-rpm` feature enables compatibility with the
+[`nicesoft-labs/apt`](https://github.com/nicesoft-labs/apt) apt-rpm style
+`libapt-pkg`. Build with:
+
+```
+cargo build --features niceos-apt-rpm
+```
+
+When using this backend, some repository metadata fields (archive, component,
+index type, homepage, codename) can be absent, and `source_package`/
+`source_version` may be `None`. Callers should handle missing values.
+
+To run tests against apt-rpm:
+
+```
+cargo test --features niceos-apt-rpm
+```
+
 
 ### Thread safety
 

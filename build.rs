@@ -15,6 +15,11 @@ fn main() {
         build.define("YE_OLDE_APT", "1");
     }
 
+    #[cfg(feature = "niceos-apt-rpm")]
+    {
+        build.define("NICEOS_APT_RPM", "1");
+    }
+
     build.compile("libapt-pkg-c.a");
 
     println!("cargo:rustc-link-lib=apt-pkg");

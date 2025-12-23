@@ -154,10 +154,7 @@ impl<'c> PkgView<'c> {
     }
 
     pub fn arch(&self) -> String {
-        unsafe {
-            make_owned_ascii_string(raw::pkg_iter_arch(self.ptr))
-                .expect("packages always have architectures")
-        }
+        unsafe { make_owned_ascii_string(raw::pkg_iter_arch(self.ptr)).unwrap_or_default() }
     }
 
     pub fn current_version(&self) -> Option<String> {
@@ -262,19 +259,20 @@ impl<'c> VerView<'c> {
     }
 
     #[cfg(not(feature = "ye-olde-apt"))]
-    pub fn source_package(&self) -> String {
+    pub fn source_package(&self) -> Option<String> {
+        #[cfg(feature = "niceos-apt-rpm")]
+        unsafe {
+            make_owned_ascii_string_with_free(raw::ver_iter_source_package(self.ptr))
+        }
+        #[cfg(not(feature = "niceos-apt-rpm"))]
         unsafe {
             make_owned_ascii_string(raw::ver_iter_source_package(self.ptr))
-                .expect("versions always have a source package")
         }
     }
 
     #[cfg(not(feature = "ye-olde-apt"))]
-    pub fn source_version(&self) -> String {
-        unsafe {
-            make_owned_ascii_string(raw::ver_iter_source_version(self.ptr))
-                .expect("versions always have a source_version")
-        }
+    pub fn source_version(&self) -> Option<String> {
+        unsafe { make_owned_ascii_string(raw::ver_iter_source_version(self.ptr)) }
     }
 
     #[cfg(not(feature = "ye-olde-apt"))]
@@ -427,19 +425,19 @@ impl<'c> VerFileView<'c> {
     }
 
     pub fn short_desc(&self) -> Option<String> {
-        unsafe { make_owned_ascii_string(raw::ver_file_parser_short_desc(self.parser)) }
+        unsafe { make_owned_ascii_string_with_free(raw::ver_file_parser_short_desc(self.parser)) }
     }
 
     pub fn long_desc(&self) -> Option<String> {
-        unsafe { make_owned_ascii_string(raw::ver_file_parser_long_desc(self.parser)) }
+        unsafe { make_owned_ascii_string_with_free(raw::ver_file_parser_long_desc(self.parser)) }
     }
 
     pub fn maintainer(&self) -> Option<String> {
-        unsafe { make_owned_ascii_string(raw::ver_file_parser_maintainer(self.parser)) }
+        unsafe { make_owned_ascii_string_with_free(raw::ver_file_parser_maintainer(self.parser)) }
     }
 
     pub fn homepage(&self) -> Option<String> {
-        unsafe { make_owned_ascii_string(raw::ver_file_parser_homepage(self.parser)) }
+        unsafe { make_owned_ascii_string_with_free(raw::ver_file_parser_homepage(self.parser)) }
     }
 }
 
@@ -488,11 +486,8 @@ impl<'c> PkgFileView<'c> {
                 .expect("package file always has a file name")
         }
     }
-    pub fn archive(&self) -> String {
-        unsafe {
-            make_owned_ascii_string(raw::pkg_file_iter_archive(self.ptr))
-                .expect("package file always has an archive")
-        }
+    pub fn archive(&self) -> Option<String> {
+        unsafe { make_owned_ascii_string(raw::pkg_file_iter_archive(self.ptr)) }
     }
     pub fn version(&self) -> Option<String> {
         unsafe { make_owned_ascii_string(raw::pkg_file_iter_version(self.ptr)) }
@@ -509,20 +504,14 @@ impl<'c> PkgFileView<'c> {
     pub fn site(&self) -> Option<String> {
         unsafe { make_owned_ascii_string(raw::pkg_file_iter_site(self.ptr)) }
     }
-    pub fn component(&self) -> String {
-        unsafe {
-            make_owned_ascii_string(raw::pkg_file_iter_component(self.ptr))
-                .expect("package file always has a component")
-        }
+    pub fn component(&self) -> Option<String> {
+        unsafe { make_owned_ascii_string(raw::pkg_file_iter_component(self.ptr)) }
     }
     pub fn architecture(&self) -> Option<String> {
         unsafe { make_owned_ascii_string(raw::pkg_file_iter_architecture(self.ptr)) }
     }
-    pub fn index_type(&self) -> String {
-        unsafe {
-            make_owned_ascii_string(raw::pkg_file_iter_index_type(self.ptr))
-                .expect("package file always has a index_type")
-        }
+    pub fn index_type(&self) -> Option<String> {
+        unsafe { make_owned_ascii_string(raw::pkg_file_iter_index_type(self.ptr)) }
     }
 }
 
@@ -540,4 +529,40 @@ unsafe fn make_owned_ascii_string(ptr: *const libc::c_char) -> Option<String> {
     };
 
     Some(string)
+}
+
+#[inline]
+unsafe fn make_owned_ascii_string_with_free(ptr: *mut libc::c_char) -> Option<String> {
+    if ptr.is_null() {
+        return None;
+    }
+
+    let string = unsafe {
+        ffi::CStr::from_ptr(ptr)
+            .to_str()
+            .expect("value should always be low-ascii")
+            .to_string()
+    };
+
+    unsafe { raw::apt_pkg_c_free_string(ptr) };
+    Some(string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{make_owned_ascii_string, make_owned_ascii_string_with_free};
+    use crate::raw;
+
+    #[test]
+    fn ascii_string_from_null_is_none() {
+        let value = unsafe { make_owned_ascii_string(std::ptr::null()) };
+        assert!(value.is_none());
+    }
+
+    #[test]
+    fn ascii_string_from_owned_ptr_frees() {
+        let value =
+            unsafe { make_owned_ascii_string_with_free(raw::apt_pkg_c_alloc_test_string()) };
+        assert_eq!(Some("apt-pkg-native".to_string()), value);
+    }
 }

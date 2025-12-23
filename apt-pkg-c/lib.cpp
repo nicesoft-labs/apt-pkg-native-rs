@@ -1,5 +1,6 @@
 #include <sstream>
 #include <cstdint>
+#include <cstring>
 
 #include <assert.h>
 
@@ -11,6 +12,7 @@
 #include <apt-pkg/init.h>
 #include <apt-pkg/pkgsystem.h>
 #include <apt-pkg/policy.h>
+#include <apt-pkg/progress.h>
 
 struct PCache {
     // Owned by us.
@@ -21,6 +23,9 @@ struct PCache {
 
     // Owned by us.
     pkgRecords *records;
+
+    // Borrowed from cache_file.
+    pkgPolicy *policy;
 };
 
 struct PPkgIterator {
@@ -146,6 +151,9 @@ extern "C" {
     const char *ver_file_parser_maintainer(PVerFileParser *parser);
     const char *ver_file_parser_homepage(PVerFileParser *parser);
 
+    const char *apt_pkg_c_alloc_test_string();
+    void apt_pkg_c_free_string(char *ptr);
+
     // ver_file_iter has no accessors, only the creation of pkg_file_iter
 
 
@@ -177,13 +185,23 @@ void init_config_system() {
 
 PCache *pkg_cache_create() {
     pkgCacheFile *cache_file = new pkgCacheFile();
-    pkgCache *cache = cache_file->GetPkgCache();
+    OpProgress progress;
+    if (!cache_file->Open(progress, false)) {
+        delete cache_file;
+        return nullptr;
+    }
+    pkgCache *cache = cache_file;
     pkgRecords *records = new pkgRecords(*cache);
 
     PCache *ret = new PCache();
     ret->cache_file = cache_file;
     ret->cache = cache;
     ret->records = records;
+#ifdef NICEOS_APT_RPM
+    ret->policy = cache_file->Policy;
+#else
+    ret->policy = cache_file->GetPolicy();
+#endif
 
     return ret;
 }
@@ -216,8 +234,23 @@ PPkgIterator *pkg_cache_find_name(PCache *cache, const char *name) {
 
 PPkgIterator *pkg_cache_find_name_arch(PCache *cache, const char *name, const char *arch) {
     PPkgIterator *wrapper = new PPkgIterator();
+#ifdef NICEOS_APT_RPM
+    wrapper->iterator = cache->cache->FindPkg(name);
+    wrapper->cache = cache;
+    if (wrapper->iterator.end() || arch == nullptr) {
+        return wrapper;
+    }
+    for (pkgCache::VerIterator ver = wrapper->iterator.VersionList(); !ver.end(); ++ver) {
+        const char *ver_arch = ver.Arch();
+        if (ver_arch != nullptr && std::strcmp(ver_arch, arch) == 0) {
+            return wrapper;
+        }
+    }
+    wrapper->iterator = cache->cache->PkgEnd();
+#else
     wrapper->iterator = cache->cache->FindPkg(name, arch);
     wrapper->cache = cache;
+#endif
     return wrapper;
 }
 
@@ -238,15 +271,45 @@ const char *pkg_iter_name(PPkgIterator *wrapper) {
 }
 
 const char *pkg_iter_arch(PPkgIterator *wrapper) {
+#ifdef NICEOS_APT_RPM
+    if (wrapper->iterator.end()) {
+        return nullptr;
+    }
+    pkgCache::VerIterator ver = wrapper->iterator.VersionList();
+    if (!ver.end()) {
+        return ver.Arch();
+    }
+    for (pkgCache::PrvIterator prv = wrapper->iterator.ProvidesList(); !prv.end(); ++prv) {
+        pkgCache::VerIterator owner_ver = prv.OwnerVer();
+        const char *ver_arch = owner_ver.Arch();
+        if (ver_arch != nullptr) {
+            return ver_arch;
+        }
+    }
+    return "";
+#else
     return wrapper->iterator.Arch();
+#endif
 }
 
 const char *pkg_iter_current_version(PPkgIterator *wrapper) {
+#ifdef NICEOS_APT_RPM
+    pkgCache::VerIterator ver = wrapper->iterator.CurrentVer();
+    if (ver.end()) {
+        return nullptr;
+    }
+    return ver.VerStr();
+#else
     return wrapper->iterator.CurVersion();
+#endif
 }
 
 const char *pkg_iter_candidate_version(PPkgIterator *wrapper) {
+#ifdef NICEOS_APT_RPM
+    pkgCache::VerIterator it = wrapper->cache->policy->GetCandidateVer(wrapper->iterator);
+#else
     pkgCache::VerIterator it = wrapper->cache->cache_file->GetPolicy()->GetCandidateVer(wrapper->iterator);
+#endif
     if (it.end()) {
         return nullptr;
     }
@@ -289,17 +352,34 @@ const char *ver_iter_priority_type(PVerIterator *wrapper) {
 #ifndef YE_OLDE_APT
 
 const char *ver_iter_source_package(PVerIterator *wrapper) {
+#ifdef NICEOS_APT_RPM
+    pkgCache::VerFileIterator file_it = wrapper->iterator.FileList();
+    if (file_it.end()) {
+        return nullptr;
+    }
+    pkgRecords::Parser &parser = wrapper->cache->records->Lookup(file_it);
+    std::string source = parser.SourcePkg();
+    if (source.empty()) {
+        return nullptr;
+    }
+    return to_c_string(source);
+#else
     return wrapper->iterator.SourcePkgName();
+#endif
 }
 
 const char *ver_iter_source_version(PVerIterator *wrapper) {
+#ifdef NICEOS_APT_RPM
+    return nullptr;
+#else
     return wrapper->iterator.SourceVerStr();
+#endif
 }
 
 int32_t ver_iter_priority(PVerIterator *wrapper) {
     // The priority is a "short", which is roughly a (signed) int16_t;
     // going bigger just in case
-    return wrapper->cache->cache_file->GetPolicy()->GetPriority(wrapper->iterator);
+    return wrapper->cache->policy->GetPriority(wrapper->iterator);
 }
 
 #endif
@@ -391,8 +471,12 @@ const char *ver_file_parser_maintainer(PVerFileParser *parser) {
 }
 
 const char *ver_file_parser_homepage(PVerFileParser *parser) {
+#ifdef NICEOS_APT_RPM
+    return nullptr;
+#else
     std::string hp = parser->parser->Homepage();
     return to_c_string(hp);
+#endif
 }
 
 bool ver_file_iter_end(PVerFileIterator *wrapper) {
@@ -434,7 +518,11 @@ const char *pkg_file_iter_origin(PPkgFileIterator *wrapper) {
 }
 
 const char *pkg_file_iter_codename(PPkgFileIterator *wrapper) {
+#ifdef NICEOS_APT_RPM
+    return nullptr;
+#else
     return wrapper->iterator.Codename();
+#endif
 }
 
 const char *pkg_file_iter_label(PPkgFileIterator *wrapper) {
@@ -455,4 +543,12 @@ const char *pkg_file_iter_architecture(PPkgFileIterator *wrapper) {
 
 const char *pkg_file_iter_index_type(PPkgFileIterator *wrapper) {
     return wrapper->iterator.IndexType();
+}
+
+const char *apt_pkg_c_alloc_test_string() {
+    return to_c_string("apt-pkg-native");
+}
+
+void apt_pkg_c_free_string(char *ptr) {
+    delete[] ptr;
 }

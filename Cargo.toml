@@ -27,3 +27,4 @@ itertools = "0.14"
 [features]
 default = []
 ye-olde-apt = []
+niceos-apt-rpm = []
