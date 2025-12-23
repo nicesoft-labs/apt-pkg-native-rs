@@ -49,17 +49,23 @@ fn main() {
                 if let Some(ref target_archive) = archive_filter {
                     if version
                         .origin_iter()
-                        .map(|origin| origin.file().next().unwrap().archive())
+                        .filter_map(|origin| origin.file().next().and_then(|file| file.archive()))
                         .any(|archive| archive == *target_archive)
                     {
                         continue;
                     }
                 }
 
+                let Some(source_pkg) = version.source_package() else {
+                    continue;
+                };
+                let Some(source_ver) = version.source_version() else {
+                    continue;
+                };
                 source_versions
-                    .entry(version.source_package())
+                    .entry(source_pkg)
                     .or_insert_with(HashSet::new)
-                    .insert(version.source_version());
+                    .insert(source_ver);
             }
         }
     }

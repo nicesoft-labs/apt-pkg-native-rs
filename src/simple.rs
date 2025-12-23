@@ -43,9 +43,9 @@ pub struct Version {
     pub section: Option<String>,
 
     #[cfg(not(feature = "ye-olde-apt"))]
-    pub source_package: String,
+    pub source_package: Option<String>,
     #[cfg(not(feature = "ye-olde-apt"))]
-    pub source_version: String,
+    pub source_version: Option<String>,
     #[cfg(not(feature = "ye-olde-apt"))]
     pub priority: i32,
 }
@@ -73,11 +73,11 @@ impl fmt::Display for Version {
             write!(f, " in {section}")?;
         }
         #[cfg(not(feature = "ye-olde-apt"))]
-        write!(
-            f,
-            " from {}:{} at {}",
-            self.source_package, self.source_version, self.priority,
-        )?;
+        {
+            let source_pkg = self.source_package.as_deref().unwrap_or("");
+            let source_ver = self.source_version.as_deref().unwrap_or("");
+            write!(f, " from {source_pkg}:{source_ver} at {}", self.priority)?;
+        }
 
         Ok(())
     }
@@ -86,15 +86,15 @@ impl fmt::Display for Version {
 #[derive(Clone, Debug)]
 pub struct Origin {
     pub file_name: String,
-    pub archive: String,
+    pub archive: Option<String>,
     pub version: Option<String>,
     pub origin: Option<String>,
     pub codename: Option<String>,
     pub label: Option<String>,
     pub site: Option<String>,
-    pub component: String,
+    pub component: Option<String>,
     pub architecture: Option<String>,
-    pub index_type: String,
+    pub index_type: Option<String>,
 }
 
 impl Origin {
@@ -127,6 +127,8 @@ impl fmt::Display for Origin {
             && self.codename.is_some()
             && self.architecture.is_some()
         {
+            let archive = self.archive.as_deref().unwrap_or("");
+            let component = self.component.as_deref().unwrap_or("");
             write!(
                 f,
                 "TODO://{}/TODO(o:{}/l:{}/c:{}) {}/{} {} (f:{})",
@@ -134,8 +136,8 @@ impl fmt::Display for Origin {
                 self.origin.as_ref().unwrap(),
                 self.label.as_ref().unwrap(),
                 self.codename.as_ref().unwrap(),
-                self.archive,
-                self.component,
+                archive,
+                component,
                 self.architecture.as_ref().unwrap(),
                 self.file_name
             )

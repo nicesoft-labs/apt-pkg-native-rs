@@ -1,7 +1,7 @@
 /// In general:
 ///  * `*mut c_void` are to be released by the appropriate function
 ///  * `*const c_chars` are short-term borrows
-///  * `*mut c_chars` are to be freed by `libc::free`.
+///  * `*mut c_chars` are to be freed by `apt_pkg_c_free_string`.
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
@@ -103,10 +103,13 @@ unsafe extern "C" {
     pub fn ver_file_iter_end(iterator: PVerFileIterator) -> bool;
 
     pub fn ver_file_iter_get_parser(iterator: PVerFileIterator) -> PVerFileParser;
-    pub fn ver_file_parser_short_desc(parser: PVerFileParser) -> *const c_char;
-    pub fn ver_file_parser_long_desc(parser: PVerFileParser) -> *const c_char;
-    pub fn ver_file_parser_maintainer(parser: PVerFileParser) -> *const c_char;
-    pub fn ver_file_parser_homepage(parser: PVerFileParser) -> *const c_char;
+    pub fn ver_file_parser_short_desc(parser: PVerFileParser) -> *mut c_char;
+    pub fn ver_file_parser_long_desc(parser: PVerFileParser) -> *mut c_char;
+    pub fn ver_file_parser_maintainer(parser: PVerFileParser) -> *mut c_char;
+    pub fn ver_file_parser_homepage(parser: PVerFileParser) -> *mut c_char;
+
+    pub fn apt_pkg_c_alloc_test_string() -> *mut c_char;
+    pub fn apt_pkg_c_free_string(ptr: *mut c_char);
 
     pub fn ver_file_iter_pkg_file_iter(iterator: PVerFileIterator) -> PPkgFileIterator;
     pub fn pkg_file_iter_release(iterator: PPkgFileIterator);
@@ -142,6 +145,9 @@ impl CacheHolder {
         unsafe {
             pkg_cache_release(self.ptr);
             self.ptr = pkg_cache_create();
+            if self.ptr.is_null() {
+                panic!("failed to recreate apt cache");
+            }
         }
     }
 }
@@ -152,7 +158,13 @@ lazy_static! {
         unsafe {
             init_config_system();
             Mutex::new(CacheHolder {
-                ptr: pkg_cache_create()
+                ptr: {
+                    let ptr = pkg_cache_create();
+                    if ptr.is_null() {
+                        panic!("failed to create apt cache");
+                    }
+                    ptr
+                },
             })
         }
     };
