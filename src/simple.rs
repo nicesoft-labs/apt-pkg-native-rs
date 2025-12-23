@@ -16,7 +16,7 @@ impl BinaryPackage {
     pub fn new(view: &sane::PkgView) -> Self {
         BinaryPackage {
             name: view.name(),
-            arch: view.arch(),
+            arch: view.arch_opt(),
             current_version: view.current_version(),
             candidate_version: view.candidate_version(),
         }
