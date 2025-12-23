@@ -153,8 +153,8 @@ impl<'c> PkgView<'c> {
         }
     }
 
-    pub fn arch(&self) -> String {
-        unsafe { make_owned_ascii_string(raw::pkg_iter_arch(self.ptr)).unwrap_or_default() }
+    pub fn arch(&self) -> Option<String> {
+        unsafe { make_owned_ascii_string(raw::pkg_iter_arch(self.ptr)) }
     }
 
     pub fn current_version(&self) -> Option<String> {
@@ -438,6 +438,14 @@ impl<'c> VerFileView<'c> {
 
     pub fn homepage(&self) -> Option<String> {
         unsafe { make_owned_ascii_string_with_free(raw::ver_file_parser_homepage(self.parser)) }
+    }
+}
+
+impl<'c> Drop for VerFileView<'c> {
+    fn drop(&mut self) {
+        if !self.parser.is_null() {
+            unsafe { raw::ver_file_parser_release(self.parser) }
+        }
     }
 }
 

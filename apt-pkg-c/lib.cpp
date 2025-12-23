@@ -146,12 +146,13 @@ extern "C" {
     PVerFileParser *ver_file_iter_get_parser(PVerFileIterator *iterator);
 
     // ver_file_parser access
-    const char *ver_file_parser_short_desc(PVerFileParser *parser);
-    const char *ver_file_parser_long_desc(PVerFileParser *parser);
-    const char *ver_file_parser_maintainer(PVerFileParser *parser);
-    const char *ver_file_parser_homepage(PVerFileParser *parser);
+    char *ver_file_parser_short_desc(PVerFileParser *parser);
+    char *ver_file_parser_long_desc(PVerFileParser *parser);
+    char *ver_file_parser_maintainer(PVerFileParser *parser);
+    char *ver_file_parser_homepage(PVerFileParser *parser);
+    void ver_file_parser_release(PVerFileParser *parser);
 
-    const char *apt_pkg_c_alloc_test_string();
+    char *apt_pkg_c_alloc_test_string();
     void apt_pkg_c_free_string(char *ptr);
 
     // ver_file_iter has no accessors, only the creation of pkg_file_iter
@@ -286,7 +287,7 @@ const char *pkg_iter_arch(PPkgIterator *wrapper) {
             return ver_arch;
         }
     }
-    return "";
+    return nullptr;
 #else
     return wrapper->iterator.Arch();
 #endif
@@ -305,11 +306,7 @@ const char *pkg_iter_current_version(PPkgIterator *wrapper) {
 }
 
 const char *pkg_iter_candidate_version(PPkgIterator *wrapper) {
-#ifdef NICEOS_APT_RPM
     pkgCache::VerIterator it = wrapper->cache->policy->GetCandidateVer(wrapper->iterator);
-#else
-    pkgCache::VerIterator it = wrapper->cache->cache_file->GetPolicy()->GetCandidateVer(wrapper->iterator);
-#endif
     if (it.end()) {
         return nullptr;
     }
@@ -449,34 +446,38 @@ PVerFileParser *ver_file_iter_get_parser(PVerFileIterator *wrapper) {
     return parser;
 }
 
-const char *to_c_string(std::string s) {
+char *to_c_string(std::string s) {
     char *cstr = new char[s.length()+1];
     std::strcpy(cstr, s.c_str());
     return cstr;
 }
 
-const char *ver_file_parser_short_desc(PVerFileParser *parser) {
+char *ver_file_parser_short_desc(PVerFileParser *parser) {
     std::string desc = parser->parser->ShortDesc();
     return to_c_string(desc);
 }
 
-const char *ver_file_parser_long_desc(PVerFileParser *parser) {
+char *ver_file_parser_long_desc(PVerFileParser *parser) {
     std::string desc = parser->parser->LongDesc();
     return to_c_string(desc);
 }
 
-const char *ver_file_parser_maintainer(PVerFileParser *parser) {
+char *ver_file_parser_maintainer(PVerFileParser *parser) {
     std::string maint = parser->parser->Maintainer();
     return to_c_string(maint);
 }
 
-const char *ver_file_parser_homepage(PVerFileParser *parser) {
+char *ver_file_parser_homepage(PVerFileParser *parser) {
 #ifdef NICEOS_APT_RPM
     return nullptr;
 #else
     std::string hp = parser->parser->Homepage();
     return to_c_string(hp);
 #endif
+}
+
+void ver_file_parser_release(PVerFileParser *parser) {
+    delete parser;
 }
 
 bool ver_file_iter_end(PVerFileIterator *wrapper) {
@@ -545,7 +546,7 @@ const char *pkg_file_iter_index_type(PPkgFileIterator *wrapper) {
     return wrapper->iterator.IndexType();
 }
 
-const char *apt_pkg_c_alloc_test_string() {
+char *apt_pkg_c_alloc_test_string() {
     return to_c_string("apt-pkg-native");
 }
 

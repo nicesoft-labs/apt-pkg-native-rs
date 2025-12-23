@@ -16,7 +16,8 @@ fn main() {
     };
 
     if let Some(view) = found.next() {
-        println!("{}:{}:", view.name(), view.arch());
+        let arch = view.arch().unwrap_or_else(|| "?".to_string());
+        println!("{}:{}:", view.name(), arch);
 
         let installed_version = view
             .current_version()

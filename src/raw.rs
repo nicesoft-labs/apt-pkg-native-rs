@@ -65,16 +65,20 @@ unsafe extern "C" {
     // Version accessors
     // =================
 
-    pub fn ver_iter_version(iterator: PVerIterator) -> *mut c_char;
-    pub fn ver_iter_section(iterator: PVerIterator) -> *mut c_char;
+    pub fn ver_iter_version(iterator: PVerIterator) -> *const c_char;
+    pub fn ver_iter_section(iterator: PVerIterator) -> *const c_char;
 
     #[cfg(not(feature = "ye-olde-apt"))]
+    #[cfg(feature = "niceos-apt-rpm")]
     pub fn ver_iter_source_package(iterator: PVerIterator) -> *mut c_char;
+    #[cfg(not(feature = "ye-olde-apt"))]
+    #[cfg(not(feature = "niceos-apt-rpm"))]
+    pub fn ver_iter_source_package(iterator: PVerIterator) -> *const c_char;
 
     #[cfg(not(feature = "ye-olde-apt"))]
-    pub fn ver_iter_source_version(iterator: PVerIterator) -> *mut c_char;
-    pub fn ver_iter_arch(iterator: PVerIterator) -> *mut c_char;
-    pub fn ver_iter_priority_type(iterator: PVerIterator) -> *mut c_char;
+    pub fn ver_iter_source_version(iterator: PVerIterator) -> *const c_char;
+    pub fn ver_iter_arch(iterator: PVerIterator) -> *const c_char;
+    pub fn ver_iter_priority_type(iterator: PVerIterator) -> *const c_char;
 
     #[cfg(not(feature = "ye-olde-apt"))]
     pub fn ver_iter_priority(iterator: PVerIterator) -> i32;
@@ -107,6 +111,7 @@ unsafe extern "C" {
     pub fn ver_file_parser_long_desc(parser: PVerFileParser) -> *mut c_char;
     pub fn ver_file_parser_maintainer(parser: PVerFileParser) -> *mut c_char;
     pub fn ver_file_parser_homepage(parser: PVerFileParser) -> *mut c_char;
+    pub fn ver_file_parser_release(parser: PVerFileParser);
 
     pub fn apt_pkg_c_alloc_test_string() -> *mut c_char;
     pub fn apt_pkg_c_free_string(ptr: *mut c_char);
