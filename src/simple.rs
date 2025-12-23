@@ -7,7 +7,7 @@ use crate::sane;
 #[derive(Clone, Debug)]
 pub struct BinaryPackage {
     pub name: String,
-    pub arch: String,
+    pub arch: Option<String>,
     pub current_version: Option<String>,
     pub candidate_version: Option<String>,
 }
@@ -25,7 +25,10 @@ impl BinaryPackage {
 
 impl fmt::Display for BinaryPackage {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{}", self.name, self.arch)?;
+        match self.arch.as_deref() {
+            Some(arch) => write!(f, "{}:{}", self.name, arch)?,
+            None => write!(f, "{}:?", self.name)?,
+        }
         if let Some(ref version) = self.current_version {
             write!(f, " @ {version}")?;
         }
