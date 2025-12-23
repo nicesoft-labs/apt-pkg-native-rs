@@ -153,7 +153,11 @@ impl<'c> PkgView<'c> {
         }
     }
 
-    pub fn arch(&self) -> Option<String> {
+    pub fn arch(&self) -> String {
+        unsafe { make_owned_ascii_string(raw::pkg_iter_arch(self.ptr)).unwrap_or_default() }
+    }
+
+    pub fn arch_opt(&self) -> Option<String> {
         unsafe { make_owned_ascii_string(raw::pkg_iter_arch(self.ptr)) }
     }
 
