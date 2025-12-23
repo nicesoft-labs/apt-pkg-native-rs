@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <sstream>
 #include <string>
@@ -475,8 +476,12 @@ PVerFileParser *ver_file_iter_get_parser(PVerFileIterator *wrapper) {
 }
 
 char *to_c_string(const std::string &s) {
-    char *cstr = new char[s.length() + 1];
-    std::strcpy(cstr, s.c_str());
+    size_t len = s.size() + 1;
+    char *cstr = static_cast<char *>(std::malloc(len));
+    if (cstr == nullptr) {
+        return nullptr;
+    }
+    std::memcpy(cstr, s.c_str(), len);
     return cstr;
 }
 
@@ -579,5 +584,5 @@ char *apt_pkg_c_alloc_test_string() {
 }
 
 void apt_pkg_c_free_string(char *ptr) {
-    delete[] ptr;
+    std::free(ptr);
 }
