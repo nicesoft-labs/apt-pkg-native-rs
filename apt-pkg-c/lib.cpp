@@ -1,6 +1,7 @@
-#include <sstream>
 #include <cstdint>
 #include <cstring>
+#include <sstream>
+#include <string>
 
 #include <assert.h>
 
@@ -74,6 +75,8 @@ struct PPkgFileIterator {
 struct PVerFileParser {
     pkgRecords::Parser *parser;
 };
+
+static char *to_c_string(const std::string &s);
 
 extern "C" {
     void init_config_system();
@@ -191,7 +194,8 @@ PCache *pkg_cache_create() {
         delete cache_file;
         return nullptr;
     }
-    pkgCache *cache = cache_file;
+    pkgCache &cache_ref = *cache_file;
+    pkgCache *cache = &cache_ref;
     pkgRecords *records = new pkgRecords(*cache);
 
     PCache *ret = new PCache();
@@ -376,7 +380,31 @@ const char *ver_iter_source_version(PVerIterator *wrapper) {
 int32_t ver_iter_priority(PVerIterator *wrapper) {
     // The priority is a "short", which is roughly a (signed) int16_t;
     // going bigger just in case
+#ifdef NICEOS_APT_RPM
+    signed short best = 0;
+    bool have = false;
+
+    for (pkgCache::VerFileIterator vf = wrapper->iterator.FileList(); !vf.end(); ++vf) {
+        pkgCache::PkgFileIterator fi = vf.File();
+        signed short pr = wrapper->cache->policy->GetPriority(fi);
+        if (!have || pr > best) {
+            best = pr;
+            have = true;
+        }
+    }
+
+    if (have) {
+        return best;
+    }
+
+    pkgCache::PkgIterator pkg = wrapper->iterator.ParentPkg();
+    if (!pkg.end()) {
+        return wrapper->cache->policy->GetPriority(pkg);
+    }
+    return 0;
+#else
     return wrapper->cache->policy->GetPriority(wrapper->iterator);
+#endif
 }
 
 #endif
@@ -446,8 +474,8 @@ PVerFileParser *ver_file_iter_get_parser(PVerFileIterator *wrapper) {
     return parser;
 }
 
-char *to_c_string(std::string s) {
-    char *cstr = new char[s.length()+1];
+char *to_c_string(const std::string &s) {
+    char *cstr = new char[s.length() + 1];
     std::strcpy(cstr, s.c_str());
     return cstr;
 }
